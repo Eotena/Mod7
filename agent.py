@@ -1,5 +1,6 @@
 from gameobjects import GameObject
 from move import Move, Direction
+import random
 
 # used as upper bound for length manhattan distance if location is not empty
 LIMIT = 1000
@@ -15,6 +16,7 @@ class Agent:
         self.head_pos = None
         self.manhattanmap = None
         self.lastdirection = None
+        self.move_number = 0
         # print(len(Move))
 
     def get_move(self, board, score, turns_alive, turns_to_starve, direction, head_position, body_parts):
@@ -59,38 +61,61 @@ class Agent:
         move left is made, the snake will go one block to the left and change its direction to west.
         """
         self.lastdirection = direction
-        # print(self.lastdirection)
         self.board = board
         self.head_pos = head_position
         if self.locfood is None or self.board[self.locfood[0]][self.locfood[1]] != GameObject.FOOD:
             # print('locfood none or eaten')
             self.locfood = self.get_food_location()
 
-        moves = list()
-        distances = list()
-        # todo: change it to static java type loop to make comparison to previous easier
+        distances = None
+        moves = None
+        distance_shortest = LIMIT + 1
+        move_shortest = Move.STRAIGHT
+        multiple_shortest = False
         for mov in Move:
-            # print(mov)
-            x, y, new_direc = self.new_location(mov)
-            if self.head_pos[1] == 0 and new_direc == Direction.NORTH:
-                pass
-            elif self.head_pos[1] == 24 and new_direc == Direction.SOUTH:
-                pass
-            elif self.head_pos[0] == 0 and new_direc == Direction.WEST:
-                pass
-            elif self.head_pos[0] == 24 and new_direc == Direction.EAST:
-                pass
-            else:
-                moves.append(mov)
-                distances.append(self.manhattandistance(x, y))
-        # todo: change the dictionary to a list since the values get overwritten causing circles
-        dict_dist = dict(zip(distances, moves))
-        distances.sort()
-        lowest = distances[0]
-        nextmove = dict_dist[lowest]
-        print(dict_dist)
-        print(nextmove)
+            x, y, hypothetical_direction = self.new_location(mov)
+            if self.check_valid(hypothetical_direction):
+                hypothetical_distance = self.manhattandistance(x, y)
+                if hypothetical_distance == distance_shortest:
+                    print('equally close manhattan distances')
+                    if multiple_shortest: # add the current equal distance move
+                        moves.append(mov)
+                        distances.append(hypothetical_distance)
+                    else: # reset lists and switch to true and add last one and current
+                        multiple_shortest = True
+                        distances = list()
+                        moves = list()
+                        moves.append(move_shortest)
+                        moves.append(move_shortest)
+                        distances.append(distance_shortest)
+                        distances.append(hypothetical_distance)
+                elif hypothetical_distance < distance_shortest: # switch to false and make move
+                    multiple_shortest = False
+                    move_shortest = mov
+                    distance_shortest = hypothetical_distance
+
+        if not multiple_shortest:
+            nextmove = move_shortest
+        else:
+            nextmove = random.choice(moves)
+        print('nextmove:', nextmove, 'len:', 'None' if moves is None else len(moves), self.move_number)
+        self.move_number += 1
         return nextmove
+
+    def check_valid(self, direction):
+        """:param mov: gives a move, move.straight, move.left or move.left"""
+        if self.head_pos[1] == 0 and direction == Direction.NORTH:
+            return False
+        elif self.head_pos[1] == 24 and direction == Direction.SOUTH:
+            return False
+        elif self.head_pos[0] == 0 and direction == Direction.WEST:
+            return False
+        elif self.head_pos[0] == 24 and direction == Direction.EAST:
+            return False
+        else:
+            return True
+            # moves.append(mov)
+            # distances.append(self.manhattandistance(x, y))
 
     def new_location(self, direc):
         """:param direc indicates the hypothetical direction for the snake eg move.STRAIGHT"""
