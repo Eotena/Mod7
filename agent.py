@@ -103,7 +103,7 @@ class Agent:
         return nextmove
 
     def check_valid(self, direction):
-        """:param mov: gives a move, move.straight, move.left or move.left"""
+        """:param direction: gives a move, move.straight, move.left or move.left"""
         if self.head_pos[1] == 0 and direction == Direction.NORTH:
             return False
         elif self.head_pos[1] == 24 and direction == Direction.SOUTH:
