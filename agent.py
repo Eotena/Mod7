@@ -88,12 +88,14 @@ class Agent:
         start_node.f = self.manhattandistance(start_node.x, start_node.y)
         start_node.g = 0
         # print(start_node.pretty())
-        self.frontier.put((start_node.f, start_node))
-        while len(self.frontier.queue) != 0:
+        frontier = queue.PriorityQueue()
+        closed = list()
+        frontier.put((start_node.f, start_node))
+        while len(frontier.queue) != 0:
             # remove node from frontier and add to closed -> will be expanded
             print("------------------------")
-            f, expand_node = self.frontier.get()
-            self.closed.append(expand_node)
+            f, expand_node = frontier.get()
+            closed.append(expand_node)
             print("expand node: {}".format((expand_node.x, expand_node.y)))
             # check if goal
             if (expand_node.x == self.locfood[0]) and (expand_node.y == self.locfood[1]):
@@ -108,20 +110,20 @@ class Agent:
                     child_node.g = child_node.parent.g + 1
                     print("child: {}, {}".format(child_node.x, child_node.y))
                     a = []
-                    for nod in self.frontier.queue:
+                    for nod in frontier.queue:
                         a.append("{}, ({}, {});".format(nod[0], nod[1].x, nod[1].y))
                     print("frontier")
                     print("".join(a))
                     b = []
-                    for nod in self.closed:
+                    for nod in closed:
                         a.append("{}, ({}, {});".format(nod.f, nod.x, nod.y))
                     print("closed")
                     print("".join(b))
                     print("___________")
                     # child_node already in frontier list
                     in_frontier = False
-                    for frontier in self.frontier.queue:
-                        f, frontier_node = frontier
+                    for frontier_tuple in frontier.queue: # TODO rename frontier
+                        f, frontier_node = frontier_tuple
                         if frontier_node.x == child_node.x and frontier_node.y == child_node.y:
                             in_frontier = True
                             if frontier_node.g <= child_node.g:
@@ -133,7 +135,7 @@ class Agent:
                     in_closed = False
                     clos = ""
                     for closed_index in range(len(self.closed)):
-                        closed_node = self.closed[closed_index]
+                        closed_node = closed[closed_index]
                         if closed_node.x == child_node.x and closed_node.y == child_node.y:
                             in_closed = True
                             clos = clos + " in closed"
@@ -143,14 +145,14 @@ class Agent:
                             else:  # can improve how quick to get to child_node
                                 child_node.h = self.manhattandistance(child_node.x, child_node.y)
                                 child_node.f = child_node.g + child_node.h
-                                self.frontier.put((child_node.f, child_node))
+                                frontier.put((child_node.f, child_node))
                     if in_closed:
                         print(clos)
                         continue
                     # not in frontier or closed list
                     child_node.h = self.manhattandistance(child_x, child_y)
                     child_node.f = child_node.g + child_node.h
-                    self.frontier.put((child_node.f, child_node))
+                    frontier.put((child_node.f, child_node))
         print("no path found")
         return False
                     
@@ -185,7 +187,6 @@ class Agent:
             last_node = last_node.parent
         routelist.reverse()
         self.remaining_moves = routelist
-        self.frontier.
         print(*routelist)
 
     def in_frontier(self, node):
