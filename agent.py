@@ -1,6 +1,9 @@
 from gameobjects import GameObject
 from move import Move, Direction
 import random
+from node import Node, Frontier
+import heapq
+import queue
 
 # used as upper bound for length manhattan distance if location is not empty
 LIMIT = 1000
@@ -14,10 +17,11 @@ class Agent:
         self.board = None
         self.distance = None
         self.head_pos = None
-        self.manhattanmap = None
-        self.lastdirection = None
+        self.lastdirection = Direction.NORTH # should not matter since default is move.straight(north)
         self.move_number = 0
-        # print(len(Move))
+        self.frontier = queue.PriorityQueue()
+        self.closed = list()
+        self.remaining_moves = list()
 
     def get_move(self, board, score, turns_alive, turns_to_starve, direction, head_position, body_parts):
         """This function behaves as the 'brain' of the snake. You only need to change the code in this function for
@@ -63,10 +67,146 @@ class Agent:
         self.lastdirection = direction
         self.board = board
         self.head_pos = head_position
+        # find food location if necessary TODO: if multiple use shortest manhattan
         if self.locfood is None or self.board[self.locfood[0]][self.locfood[1]] != GameObject.FOOD:
             # print('locfood none or eaten')
             self.locfood = self.get_food_location()
+        if len(self.remaining_moves) != 0:
+            return self.remaining_moves.pop(0)
+        # print('nextmove:', nextmove, 'len:', 'None' if moves is None else len(moves), self.move_number)
+        if self.search_a_star(direction):
+            return self.remaining_moves.pop(0)
+        else:  # implement using most spaces and snake near edge
+            pass
+        # return Move.STRAIGHT
 
+    def search_a_star(self, direction):
+        # f(n) = g(n) + h(n)
+        # weight = actual_steps_to_node_n(actual) + expected_steps_from_n_to_goal (manhattan)
+        # add start node
+        start_node = Node(self.head_pos[0], self.head_pos[1], None, direction, None) # didnt have to make a move to get there
+        start_node.f = self.manhattandistance(start_node.x, start_node.y)
+        start_node.g = 0
+        # print(start_node.pretty())
+        self.frontier.put((start_node.f, start_node))
+        while len(self.frontier.queue) != 0:
+            # remove node from frontier and add to closed -> will be expanded
+            print("------------------------")
+            f, expand_node = self.frontier.get()
+            self.closed.append(expand_node)
+            print("expand node: {}".format((expand_node.x, expand_node.y)))
+            # check if goal
+            if (expand_node.x == self.locfood[0]) and (expand_node.y == self.locfood[1]):
+                # print('entered on food')
+                self.backtrackpath(expand_node)  # TODO: implement backtrack function if at goal
+                return True
+            # print('after food match')
+            for mov in Move:
+                child_x, child_y, hypothetical_direction = self.hypothetical_new_location(expand_node.x, expand_node.y, expand_node.direction, mov)
+                if self.valid_child(child_x, child_y):
+                    child_node = Node(child_x, child_y, expand_node, hypothetical_direction, mov)
+                    child_node.g = child_node.parent.g + 1
+                    print("child: {}, {}".format(child_node.x, child_node.y))
+                    a = []
+                    for nod in self.frontier.queue:
+                        a.append("{}, ({}, {});".format(nod[0], nod[1].x, nod[1].y))
+                    print("frontier")
+                    print("".join(a))
+                    b = []
+                    for nod in self.closed:
+                        a.append("{}, ({}, {});".format(nod.f, nod.x, nod.y))
+                    print("closed")
+                    print("".join(b))
+                    print("___________")
+                    # child_node already in frontier list
+                    in_frontier = False
+                    for frontier in self.frontier.queue:
+                        f, frontier_node = frontier
+                        if frontier_node.x == child_node.x and frontier_node.y == child_node.y:
+                            in_frontier = True
+                            if frontier_node.g <= child_node.g:
+                                break               # was continue
+                            
+                    if in_frontier:
+                        continue
+                    # child_node in the closed list and NOT in frontier list
+                    in_closed = False
+                    clos = ""
+                    for closed_index in range(len(self.closed)):
+                        closed_node = self.closed[closed_index]
+                        if closed_node.x == child_node.x and closed_node.y == child_node.y:
+                            in_closed = True
+                            clos = clos + " in closed"
+                            if closed_node.g <= child_node.g:
+                                clos = clos + " and is better"
+                                break               # was continue
+                            else:  # can improve how quick to get to child_node
+                                child_node.h = self.manhattandistance(child_node.x, child_node.y)
+                                child_node.f = child_node.g + child_node.h
+                                self.frontier.put((child_node.f, child_node))
+                    if in_closed:
+                        print(clos)
+                        continue
+                    # not in frontier or closed list
+                    child_node.h = self.manhattandistance(child_x, child_y)
+                    child_node.f = child_node.g + child_node.h
+                    self.frontier.put((child_node.f, child_node))
+        print("no path found")
+        return False
+                    
+                    
+
+
+
+                    # else:
+                    #     closed_node_index = self.in_closed(child_node)
+                    #     # in the closed list
+                    #     if closed_node_index != False:
+                    #         closed_node = self.closed[closed_node_index]
+                    #         #present node in closed accessed quicker (g), so go to next
+                    #         if closed_node.g <= child_node.g:
+                    #             break            # was continue TODO most likely alter this
+                    #         self.closed.pop(closed_node_index)
+                    #         heapq.heappush(self.frontier, (closed_node.f, closed_node)
+                    #     # NOT in closed list
+                    #     else:
+                    #         heapq.heappush(self.frontier, (child_node.f, child_node))
+                    #         child_node.h = self.manhattandistance(child_x, child_y) # can be replaced to child_node.x and .y
+                    #         child_node.set_f()
+                    # # child_node NOT in frontier list yet
+                    #     else:
+                    #         heapq.heappush(self.frontier, (cchild_node) )
+
+    def backtrackpath(self, last_node):
+        print("at the final node!!")
+        routelist = list()
+        while last_node.parent is not None:
+            routelist.append(last_node.move)
+            last_node = last_node.parent
+        routelist.reverse()
+        self.remaining_moves = routelist
+        self.frontier.
+        print(*routelist)
+
+    def in_frontier(self, node):
+        for current_node in self.frontier:
+            if current_node.x == node.x and current_node.y == node.y:
+                if node < current_node:
+                    return Frontier.IS_LOWER
+                elif node > current_node:
+                    return Frontier.IS_LARGER
+                else:
+                    return Frontier.IS_EQUAL
+            else:
+                return Frontier.NOT_IN
+
+    def in_closed(self, node):
+        for current_node in range(len(self.frontier)):
+            if self.closed[current_node].x == node.x and self.closed[current_node].y == node.y:
+                return current_node
+        return False
+
+    def search_closestmanhattan(self):
         distances = None
         moves = None
         distance_shortest = LIMIT + 1
@@ -95,15 +235,19 @@ class Agent:
                     distance_shortest = hypothetical_distance
 
         if not multiple_shortest:
-            nextmove = move_shortest
+            return move_shortest
         else:
-            nextmove = random.choice(moves)
-        print('nextmove:', nextmove, 'len:', 'None' if moves is None else len(moves), self.move_number)
-        self.move_number += 1
-        return nextmove
+            return random.choice(moves)
 
-    def check_valid(self, direction):
-        """:param direction: gives a move, move.straight, move.left or move.left"""
+    def valid_child(self, x, y):
+        if x < 0 or x > 24 or y < 0 or y > 24 or self.board[x][y] == GameObject.WALL or self.board[x][y] == GameObject.SNAKE_BODY:
+            return False
+        else:
+            return True
+
+    def check_valid(self, x, y , direction):
+        """ used by searchmanhattandistance
+            :param direction: gives a move, move.straight, move.left or move.left"""
         if self.head_pos[1] == 0 and direction == Direction.NORTH:
             return False
         elif self.head_pos[1] == 24 and direction == Direction.SOUTH:
@@ -114,17 +258,21 @@ class Agent:
             return False
         else:
             return True
-            # moves.append(mov)
-            # distances.append(self.manhattandistance(x, y))
+
+    def hypothetical_new_location(self, x, y, direc, mov):
+        """:param direc indicates the hypothetical direction for the snake eg move.STRAIGHT"""
+        new_direction = direc.get_new_direction(mov)
+        manip = new_direction.get_xy_manipulation()
+        x = x + manip[0]
+        y = y + manip[1]
+        return x, y, new_direction
 
     def new_location(self, direc):
         """:param direc indicates the hypothetical direction for the snake eg move.STRAIGHT"""
         new_direction = self.lastdirection.get_new_direction(direc)
         manip = new_direction.get_xy_manipulation()
-        # print('old:', self.head_pos)
         x = self.head_pos[0] + manip[0]
         y = self.head_pos[1] + manip[1]
-        # print('new pos:', (x, y))
         return x, y, new_direction
 
     def get_food_location(self):
@@ -142,7 +290,7 @@ class Agent:
                 return map
 
     def manhattandistance(self, x, y):
-        if (self.board[x][y] == GameObject.FOOD) or (self.board[x][y] == GameObject.EMPTY):
+        if (self.board[x][y] == GameObject.FOOD) or (self.board[x][y] == GameObject.EMPTY) or (self.board[x][y] == GameObject.SNAKE_HEAD):
             return abs(x - self.locfood[0]) + abs(y - self.locfood[1])
         else:
             return LIMIT
