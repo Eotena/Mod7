@@ -1,3 +1,5 @@
+import move
+
 from gameobjects import GameObject
 from move import Move, Direction
 from state import State
@@ -6,12 +8,12 @@ import queue
 import numpy as np
 import gym
 
-#from keras.models import Sequential
-#from keras.optimizers import Adam
+# from keras.models import Sequential
+# from keras.optimizers import Adam
 
-#from rl.agents.dqn import DQNAgent
-#from rl.policy import EpsGreedyQPolicy
-#from rl.memory import SequentialMemory
+# from rl.agents.dqn import DQNAgent
+# from rl.policy import EpsGreedyQPolicy
+# from rl.memory import SequentialMemory
 
 # used as upper bound for length manhattan distance if location is not empty
 LIMIT = 1000
@@ -23,6 +25,9 @@ class Agent:
         """" Constructor of the Agent, can be used to set up variables """
         self.env = None
         self.epsilon = None
+        self.q_table = {}
+        self.reward = 0
+        self.board = None
 
     def get_move(self, board, score, turns_alive, turns_to_starve, direction, head_position, body_parts):
         """This function behaves as the 'brain' of the snake. You only need to change the code in this function for
@@ -66,16 +71,32 @@ class Agent:
         move left is made, the snake will go one block to the left and change its direction to west.
         """
 
-        food: [] = self.get_food_location(board)
+        self.board = board
+
+        self.q_table = [[[0 for x in range(len(board))] for y in range(len(board))] for move in move.Move]
+        for move in move.Move:
+            for x in range(len(self.board)):
+                for y in range(len(self.board[x])):
+                    if board[x][y] == 2:
+                        self.q_table[x][y][move] = 1
+                    else: self.q_table[x][y][move] = 0
+
+
+
+
+        food = self.get_food_location(board)
+        curr_state = State(head_position[0], head_position[1], food, direction, board)
 
         return Move.STRAIGHT
+
+
 
     def get_food_location(self, board):
         # print(self.board)
         for x in range(len(board)):
             for y in range(len(board[x])):
                 if board[x][y] == GameObject.FOOD:
-                    return x, y
+                    return [x, y]
 
     def should_redraw_board(self):
         """
@@ -94,7 +115,7 @@ class Agent:
 
         :return: True if the snake should grow, False if the snake should not grow
         """
-        return True
+        return False
 
     def on_die(self, head_position, board, score, body_parts):
         """This function will be called whenever the snake dies. After its dead the snake will be reincarnated into a
