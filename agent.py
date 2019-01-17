@@ -154,6 +154,7 @@ class Agent:
 
     @staticmethod
     def choose_action(q_indexes):
+        print("some indexes")
         print(q_indexes)
         if q_indexes[0] == q_indexes[1] and q_indexes[0] == q_indexes[2]:
             return random.randint(0,2)
@@ -172,9 +173,25 @@ class Agent:
 
     def reward_value(self, reward, q_index, curr_state):
         last_value = self.q_table[q_index].reward
+        max_action = -1
+        q_indexes = []
+        for entry in self.q_table:
+            if curr_state.food_dist == entry.state.food_dist and curr_state.direction == entry.state.direction:
+                print("hey, they are the same")
+                q_indexes.append(self.q_table.index(entry))
+                if q_indexes.__sizeof__() == 3:
+                    break
+        if q_indexes[0] == q_indexes[1] and q_indexes[0] == q_indexes[2]:
+            max_action =  random.randint(0,2)
 
+        for index in q_indexes:
+            if index >= max:
+                max_action = index
 
-        return 0
+        max_reward = self.q_table[q_indexes[index]]
+
+        reward = reward + self.alpha * (reward + max_reward - reward)
+        return reward
 
     @staticmethod
     def should_redraw_board():
