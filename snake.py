@@ -19,6 +19,8 @@ class Snake:
         self.max_tics_to_starve = max_tics_to_starve
         self.agent = Agent()
         self.size = 0
+        self.dead = False
+        self.just_fed = False
 
     def update(self, board):
         redraw_board = self.agent.should_redraw_board()
@@ -32,7 +34,7 @@ class Snake:
 
         # retrieve move from the agent
         move = self.agent.get_move(board.get_copy(), self.score, self.tics_alive, self.tics_to_starve,
-                                   self.direction, (self.x, self.y), self.body_parts)
+                                   self.direction, (self.x, self.y), self.body_parts, self.died, self.just_fed)
 
         # check return value of get_move
         if not (move == Move.RIGHT or move == Move.LEFT or move == Move.STRAIGHT):
@@ -48,9 +50,14 @@ class Snake:
         self.x += manipulation[0]
         self.y += manipulation[1]
 
+
+
         # check if died
         if self.died(board):
+            self.died = True
             return True, redraw_board
+        else:
+            self.died = False
 
         # check on collision with food
         if board.board[self.x][self.y] == GameObject.FOOD:
@@ -60,6 +67,7 @@ class Snake:
             if should_grow:
                 self.size += 1
             self.score += 1
+            self.just_fed = True
             board.eat_food(self.x, self.y)
             if self.max_tics_to_starve != -1:
                 self.tics_to_starve = self.max_tics_to_starve + 1

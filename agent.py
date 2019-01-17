@@ -1,13 +1,19 @@
+import random
+
+import move as move
+
+from move import Move
 import move
 
 from gameobjects import GameObject
 from move import Move, Direction
-from state import State
+from state import State, Q_entry
 import heapq
 import queue
 import numpy as np
 import gym
 
+import move
 # from keras.models import Sequential
 # from keras.optimizers import Adam
 
@@ -25,11 +31,29 @@ class Agent:
         """" Constructor of the Agent, can be used to set up variables """
         self.env = None
         self.epsilon = None
-        self.q_table = {}
+        self.q_table = []
         self.reward = 0
         self.board = None
+        self.alpha = 0.5
+        self.gamma = 0.95
+        self.last_state = None
+        self.last_action = None
 
-    def get_move(self, board, score, turns_alive, turns_to_starve, direction, head_position, body_parts):
+        for x in range(5):
+            for y in range(5):
+                for a in range(5):
+                    for b in range(5):
+                        dist = self.get_dist([a, b], [x, y])
+                        for direc in Direction:
+                            state = State(dist, direc)
+
+                            for mov in Move:
+                                q_entry = Q_entry(state, mov)
+                                self.q_table.append(q_entry)
+
+        print(self.q_table.__str__())
+
+    def get_move(self, board, score, turns_alive, turns_to_starve, direction, head_position, body_parts, died , fed):
         """This function behaves as the 'brain' of the snake. You only need to change the code in this function for
         the project. Every turn the agent needs to return a move. This move will be executed by the snake. If this
         functions fails to return a valid return (see return), the snake will die (as this confuses its tiny brain
@@ -72,24 +96,50 @@ class Agent:
         """
 
         self.board = board
+        food = []
+        for x in range(len(board)):
+            for y in range(len(board)):
 
-        self.q_table = [[[0 for x in range(len(board))] for y in range(len(board))] for move in move.Move]
-        for move in move.Move:
-            for x in range(len(self.board)):
-                for y in range(len(self.board[x])):
-                    if board[x][y] == 2:
-                        self.q_table[x][y][move] = 1
-                    else: self.q_table[x][y][move] = 0
+                print(board[x][y])
+                if board[x][y] == GameObject.FOOD:
+                    food = [x, y]
+                    break
+        print(food)
+        print(head_position)
+        food_dist = self.get_dist(food, head_position)
+        curr_state = State(food_dist, direction)
 
+        if self.last_state is not None and self.last_action is not None:
+            last_state_index = None
+            for entry in self.q_table:
+                index = self.q_table.index(entry)
+                if entry == self.last_state and self.last_action == self.q_table[index]:
+                    last_state_index = index
 
+            if died:
+                reward = -1
+                self.reward_value(reward, last_state_index, self.last_state)
+            elif fed:
+                reward = 1
+                self.reward_value(reward, last_state_index, self.last_state)
 
+        q_indexes = []
+        for entry in self.q_table:
+            if curr_state.food_dist == entry.state.food_dist and curr_state.direction == entry.state.direction:
+                print("hey, they are the same")
+                q_indexes.append(self.q_table.index(entry))
+                if q_indexes.__sizeof__() == 3:
+                    break
 
-        food = self.get_food_location(board)
-        curr_state = State(head_position[0], head_position[1], food, direction, board)
+        action = self.choose_action(q_indexes)
 
-        return Move.STRAIGHT
+        self.last_action = action
+        self.last_state = curr_state
+        print("stuff is done")
+        print(action)
+#
 
-
+        return action
 
     def get_food_location(self, board):
         # print(self.board)
@@ -98,7 +148,36 @@ class Agent:
                 if board[x][y] == GameObject.FOOD:
                     return [x, y]
 
-    def should_redraw_board(self):
+    @staticmethod
+    def get_dist(food, head):
+        return abs(head[0] - food[0]), abs(head[1] - food[1])
+
+    @staticmethod
+    def choose_action(q_indexes):
+        print(q_indexes)
+        if q_indexes[0] == q_indexes[1] and q_indexes[0] == q_indexes[2]:
+            return random.randint(0,2)
+
+        max = -1
+        maxes = []
+        for index in q_indexes:
+            if index >= max:
+                max = index
+                maxes.append(index)
+
+        if maxes.__sizeof__() == 1:
+            return maxes[0]
+        else:
+            return maxes[random.randint(0, len(maxes))]
+
+    def reward_value(self, reward, q_index, curr_state):
+        last_value = self.q_table[q_index].reward
+
+
+        return 0
+
+    @staticmethod
+    def should_redraw_board():
         """
         This function indicates whether the board should be redrawn. Not drawing to the board increases the number of
         games that can be played in a given time. This is especially useful if you want to train you agent. The
@@ -108,7 +187,8 @@ class Agent:
         """
         return True
 
-    def should_grow_on_food_collision(self):
+    @staticmethod
+    def should_grow_on_food_collision():
         """
         This function indicates whether the snake should grow when colliding with a food object. This function is
         called whenever the snake collides with a food block.
