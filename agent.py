@@ -18,16 +18,17 @@ class Agent:
 
     def __init__(self):
         """" Constructor of the Agent, can be used to set up variables """
+        self.died = False
         self.epsilon = None
         self.q_table = None
         self.alpha = 0.5
         self.gamma = 0.95
         self.last_state = None
         self.last_action = None
+        self.state_size = 9
+        self.q_table = [[[0 for x in range(0, 4)] for y in range(0, self.state_size)] for dir in range(0, self.state_size)]
 
-        self.q_table = [[[0 for x in range(0, 4)] for y in range(0, 9)] for dir in range(0, 9)]
-
-    def get_move(self, board, score, turns_alive, turns_to_starve, direction, head_position, body_parts, died, fed):
+    def get_move(self, board, score, turns_alive, turns_to_starve, direction, head_position, body_parts, fed):
         """This function behaves as the 'brain' of the snake. You only need to change the code in this function for
         the project. Every turn the agent needs to return a move. This move will be executed by the snake. If this
         functions fails to return a valid return (see return), the snake will die (as this confuses its tiny brain
@@ -75,26 +76,30 @@ class Agent:
         #        print(food)
         #        print(head_position)
 
-        # get food distance and intialise the state
+        # get food distance and initialise the state
         food_dist = self.get_dist(food, head_position)
-        print(food_dist)
-        curr_state = food_dist
+        food_dist = (food_dist[0] + 4, food_dist[1] + 4)
 
         # none if first move after init, since no action is taken and no update
         # updates reward values for last state action pair
-        if self.last_state is not None and self.last_action is not None and not died:
+        if self.last_state is not None and self.last_action is not None and not self.died:
             if fed:
                 reward = 1
-                self.reward_value(reward, self.last_state, curr_state)
+                self.reward_value(reward, self.last_state, direction, food_dist)
             else:
                 reward = -0.04
-                self.reward_value(reward, self.last_state, curr_state)
-
-        future_action = self.choose_action(self.get_actions(direction), curr_state)
-        self.last_action = future_action
-        self.last_state = curr_state
-        print("stuff is done")
+                self.reward_value(reward, self.last_state, direction, food_dist)
+        print("action value incoming")
+        print(self.choose_action(self.get_actions(direction), food_dist))
+        print(direction.value)
+        print((direction.value - self.choose_action(self.get_actions(direction), food_dist) % 2))
+        future_action = Move((direction.value - self.choose_action(self.get_actions(direction), food_dist) % 3) - 1)
+        print("decided on action")
         print(future_action)
+        self.last_action = direction.get_new_direction(future_action)
+        print(self.last_action)
+        self.last_state = food_dist
+        print("stuff is done")
 
         return future_action
 
@@ -129,16 +134,15 @@ class Agent:
         q_values = queue.PriorityQueue()
         for action in actions:
             q_values.put((-1 * self.q_table[state[0]][state[1]][action.value], action.value))
-            print(q_values.queue)
         if q_values.queue[0] == q_values.queue[1]:
             if q_values.queue[0] == q_values.queue[2]:
-                return q_values.get(random.randint(0, 2))
-            return q_values.get(random.randint(0, 1))
+                return q_values.get(random.randint(0, 2))[1]
+            return q_values.get(random.randint(0, 1))[1]
         else:
-            return q_values.get(0)
+            return q_values.get(0)[1]
 
     def reward_value(self, reward, last_state, last_action, curr_state):
-        last_value = self.q_table[last_state[0]][last_state[1]][last_action]
+        last_value = self.q_table[last_state[0]][last_state[1]][last_action.value]
         best_hypothetical_action = (self.choose_action(self.get_actions(last_action), curr_state))
         # add function to find the possible actions in this state
 
@@ -148,8 +152,10 @@ class Agent:
         return reward
 
     def reward_value_dead(self, last_state, last_action):
-
-        last_value = self.q_table[last_state[0]][last_state[1]][last_action]
+        print(last_action)
+        print(last_state[0])
+        print(last_state[1])
+        last_value = self.q_table[last_state[0]][last_state[1]][last_action.value]
         reward = last_value + self.alpha * (-1 - last_value)
         return reward
 
@@ -192,5 +198,6 @@ class Agent:
         When the snake runs in its own body the following holds: head_position in body_parts.
         """
         self.reward_value_dead(self.last_state, self.last_action)
+        self.died = True
         # self.last_state = None
         # self.last_action = None
