@@ -8,18 +8,7 @@ import move
 from gameobjects import GameObject
 from move import Move, Direction
 from state import State, Q_entry
-import heapq
 import queue
-import numpy as np
-import gym
-
-import move
-# from keras.models import Sequential
-# from keras.optimizers import Adam
-
-# from rl.agents.dqn import DQNAgent
-# from rl.policy import EpsGreedyQPolicy
-# from rl.memory import SequentialMemory
 
 # used as upper bound for length manhattan distance if location is not empty
 LIMIT = 1000
@@ -29,31 +18,16 @@ class Agent:
 
     def __init__(self):
         """" Constructor of the Agent, can be used to set up variables """
-        self.env = None
         self.epsilon = None
-        self.q_table = []
-        self.reward = 0
-        self.board = None
+        self.q_table = None
         self.alpha = 0.5
         self.gamma = 0.95
         self.last_state = None
         self.last_action = None
 
-        for x in range(5):
-            for y in range(5):
-                for a in range(5):
-                    for b in range(5):
-                        dist = self.get_dist([a, b], [x, y])
-                        for direc in Direction:
-                            state = State(dist, direc)
+        self.q_table = [[[0 for x in range(0, 4)] for y in range(0, 9)] for dir in range(0, 9)]
 
-                            for mov in Move:
-                                q_entry = Q_entry(state, mov)
-                                self.q_table.append(q_entry)
-
-        print(self.q_table.__str__())
-
-    def get_move(self, board, score, turns_alive, turns_to_starve, direction, head_position, body_parts, died , fed):
+    def get_move(self, board, score, turns_alive, turns_to_starve, direction, head_position, body_parts, died, fed):
         """This function behaves as the 'brain' of the snake. You only need to change the code in this function for
         the project. Every turn the agent needs to return a move. This move will be executed by the snake. If this
         functions fails to return a valid return (see return), the snake will die (as this confuses its tiny brain
@@ -95,102 +69,88 @@ class Agent:
         move left is made, the snake will go one block to the left and change its direction to west.
         """
 
-        self.board = board
-        food = []
-        for x in range(len(board)):
-            for y in range(len(board)):
+        # search for food
+        food = self.get_food_location(board)
 
-                print(board[x][y])
-                if board[x][y] == GameObject.FOOD:
-                    food = [x, y]
-                    break
-        print(food)
-        print(head_position)
+        #        print(food)
+        #        print(head_position)
+
+        # get food distance and intialise the state
         food_dist = self.get_dist(food, head_position)
-        curr_state = State(food_dist, direction)
+        print(food_dist)
+        curr_state = food_dist
 
-        if self.last_state is not None and self.last_action is not None:
-            last_state_index = None
-            for entry in self.q_table:
-                index = self.q_table.index(entry)
-                if entry == self.last_state and self.last_action == self.q_table[index]:
-                    last_state_index = index
-
-            if died:
-                reward = -1
-                self.reward_value(reward, last_state_index, self.last_state)
-            elif fed:
+        # none if first move after init, since no action is taken and no update
+        # updates reward values for last state action pair
+        if self.last_state is not None and self.last_action is not None and not died:
+            if fed:
                 reward = 1
-                self.reward_value(reward, last_state_index, self.last_state)
+                self.reward_value(reward, self.last_state, curr_state)
+            else:
+                reward = -0.04
+                self.reward_value(reward, self.last_state, curr_state)
 
-        q_indexes = []
-        for entry in self.q_table:
-            if curr_state.food_dist == entry.state.food_dist and curr_state.direction == entry.state.direction:
-                print("hey, they are the same")
-                q_indexes.append(self.q_table.index(entry))
-                if q_indexes.__sizeof__() == 3:
-                    break
-
-        action = self.choose_action(q_indexes)
-
-        self.last_action = action
+        future_action = self.choose_action(self.get_actions(direction), curr_state)
+        self.last_action = future_action
         self.last_state = curr_state
         print("stuff is done")
-        print(action)
-#
+        print(future_action)
 
-        return action
+        return future_action
 
     def get_food_location(self, board):
         # print(self.board)
         for x in range(len(board)):
             for y in range(len(board[x])):
                 if board[x][y] == GameObject.FOOD:
-                    return [x, y]
+                    return (x, y)
+
+    def get_actions(self, direction):
+        """returns list of  directions when actions applied to given direction
+        """
+        actions = []
+        for move in Move:
+            actions.append(direction.get_new_direction(move))
+        return actions
 
     @staticmethod
     def get_dist(food, head):
-        return abs(head[0] - food[0]), abs(head[1] - food[1])
+        return head[0] - food[0], head[1] - food[1]
 
-    @staticmethod
-    def choose_action(q_indexes):
-        print("some indexes")
-        print(q_indexes)
-        if q_indexes[0] == q_indexes[1] and q_indexes[0] == q_indexes[2]:
-            return random.randint(0,2)
 
-        max = -1
-        maxes = []
-        for index in q_indexes:
-            if index >= max:
-                max = index
-                maxes.append(index)
+    def choose_action(self, actions, state):
+        """returns action with highest value in q_table
+        :param state: the given state of which we want to return the highest
 
-        if maxes.__sizeof__() == 1:
-            return maxes[0]
+        :param actions: the possible actions we can make from the given state (Direction)
+
+        :returns: achievable direction that gives the highest q_value
+        """
+        q_values = queue.PriorityQueue()
+        for action in actions:
+            q_values.put((-1 * self.q_table[state[0]][state[1]][action.value], action.value))
+            print(q_values.queue)
+        if q_values.queue[0] == q_values.queue[1]:
+            if q_values.queue[0] == q_values.queue[2]:
+                return q_values.get(random.randint(0, 2))
+            return q_values.get(random.randint(0, 1))
         else:
-            return maxes[random.randint(0, len(maxes))]
+            return q_values.get(0)
 
-    def reward_value(self, reward, q_index, curr_state):
-        last_value = self.q_table[q_index].reward
-        max_action = -1
-        q_indexes = []
-        for entry in self.q_table:
-            if curr_state.food_dist == entry.state.food_dist and curr_state.direction == entry.state.direction:
-                print("hey, they are the same")
-                q_indexes.append(self.q_table.index(entry))
-                if q_indexes.__sizeof__() == 3:
-                    break
-        if q_indexes[0] == q_indexes[1] and q_indexes[0] == q_indexes[2]:
-            max_action =  random.randint(0,2)
+    def reward_value(self, reward, last_state, last_action, curr_state):
+        last_value = self.q_table[last_state[0]][last_state[1]][last_action]
+        best_hypothetical_action = (self.choose_action(self.get_actions(last_action), curr_state))
+        # add function to find the possible actions in this state
 
-        for index in q_indexes:
-            if index >= max:
-                max_action = index
+        max_next_reward = self.q_table[last_state[0]][last_state[1]][best_hypothetical_action]
 
-        max_reward = self.q_table[q_indexes[index]]
+        reward = last_value + self.alpha * (reward + self.gamma * max_next_reward - last_value)
+        return reward
 
-        reward = reward + self.alpha * (reward + max_reward - reward)
+    def reward_value_dead(self, last_state, last_action):
+
+        last_value = self.q_table[last_state[0]][last_state[1]][last_action]
+        reward = last_value + self.alpha * (-1 - last_value)
         return reward
 
     @staticmethod
@@ -231,3 +191,6 @@ class Agent:
         represents the tail and the first element represents the body part directly following the head of the snake.
         When the snake runs in its own body the following holds: head_position in body_parts.
         """
+        self.reward_value_dead(self.last_state, self.last_action)
+        # self.last_state = None
+        # self.last_action = None
