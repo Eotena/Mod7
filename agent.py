@@ -89,39 +89,38 @@ class Agent:
             else:
                 reward = -0.04
                 self.reward_value(reward, self.last_state, direction, food_dist)
-        print("action value incoming")
-        print(self.choose_action(self.get_actions(direction), food_dist))
-        print(direction.value)
-        print((direction.value - self.choose_action(self.get_actions(direction), food_dist) % 2))
-        future_action = Move((direction.value - self.choose_action(self.get_actions(direction), food_dist) % 3) - 1)
-        print("decided on action")
-        print(future_action)
-        self.last_action = direction.get_new_direction(future_action)
-        print(self.last_action)
+        future_action = self.choose_action(self.get_actions(direction), food_dist)
+        future_move = Move(self.get_new_move(future_action, direction))
+        self.last_action = direction.get_new_direction(future_move)
         self.last_state = food_dist
-        print("stuff is done")
+        print("------------------------------------------------------------------")
 
-        return future_action
+        return future_move
 
-    def get_food_location(self, board):
+    @staticmethod
+    def get_new_move(future_move, direction):
+        return (future_move.value - direction.value) % 2 - 1
+
+    @staticmethod
+    def get_food_location(board):
         # print(self.board)
         for x in range(len(board)):
             for y in range(len(board[x])):
                 if board[x][y] == GameObject.FOOD:
-                    return (x, y)
+                    return x, y
 
-    def get_actions(self, direction):
+    @staticmethod
+    def get_actions(direction):
         """returns list of  directions when actions applied to given direction
         """
         actions = []
-        for move in Move:
-            actions.append(direction.get_new_direction(move))
+        for mov in Move:
+            actions.append(direction.get_new_direction(mov))
         return actions
 
     @staticmethod
     def get_dist(food, head):
         return head[0] - food[0], head[1] - food[1]
-
 
     def choose_action(self, actions, state):
         """returns action with highest value in q_table
@@ -133,15 +132,24 @@ class Agent:
         """
         q_values = queue.PriorityQueue()
         for action in actions:
-            q_values.put((-1 * self.q_table[state[0]][state[1]][action.value], action.value))
+            q_values.put(-1 * self.q_table[state[0]][state[1]][action.value], action)
         if q_values.queue[0] == q_values.queue[1]:
             if q_values.queue[0] == q_values.queue[2]:
-                return q_values.get(random.randint(0, 2))[1]
-            return q_values.get(random.randint(0, 1))[1]
+                index = random.randint(0, 2)
+                while index != 0:
+                    q_values.get()
+                    index += -1
+                return q_values.get()
+            index = random.randint(0, 1)
+            while index != 0:
+                q_values.get()
+                index += -1
+            return q_values.get()
         else:
-            return q_values.get(0)[1]
+            return q_values.get()
 
     def reward_value(self, reward, last_state, last_action, curr_state):
+        print("I did not die")
         last_value = self.q_table[last_state[0]][last_state[1]][last_action.value]
         best_hypothetical_action = (self.choose_action(self.get_actions(last_action), curr_state))
         # add function to find the possible actions in this state
@@ -149,14 +157,14 @@ class Agent:
         max_next_reward = self.q_table[last_state[0]][last_state[1]][best_hypothetical_action]
 
         reward = last_value + self.alpha * (reward + self.gamma * max_next_reward - last_value)
+        print(reward)
         return reward
 
     def reward_value_dead(self, last_state, last_action):
-        print(last_action)
-        print(last_state[0])
-        print(last_state[1])
+        print("Hey I died")
         last_value = self.q_table[last_state[0]][last_state[1]][last_action.value]
         reward = last_value + self.alpha * (-1 - last_value)
+        print(reward)
         return reward
 
     @staticmethod
