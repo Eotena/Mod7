@@ -141,7 +141,7 @@ class Agent:
         q_values = []
 
         for action in actions:
-            q_values.append([(self.q_table[state[0]][state[1]][action.value]), action])
+            q_values.append([self.q_table[state[0]][state[1]][action.value], action])
         print(q_values)
         print(q_values[0][0])
         print(q_values[1][0])
@@ -167,7 +167,6 @@ class Agent:
             if q_values[1][0] > q_values[2][0]:
                 return q_values[1][1]
         else:
-
             return q_values[2][1]
 
 
@@ -198,7 +197,6 @@ class Agent:
         best_hypothetical_action = (self.choose_action(self.get_actions(last_action), curr_state))
         # add function to find the possible actions in this state
         print(best_hypothetical_action)
-
         max_next_reward = self.q_table[last_state[0]][last_state[1]][best_hypothetical_action.value]
 
         reward = last_value + self.alpha * (reward + self.gamma * max_next_reward - last_value)
